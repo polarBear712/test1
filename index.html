@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="zh-TW">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title></title>
+		<style>
+			body {
+				font-family: Arial, sans-serif;
+				text-align: center;
+				margin: 20px;
+			}
+			.container {
+				max-width: 400px;
+				margin: auto;
+				padding: 20px;
+				border: 1px solid #ccc;
+				border-radius: 10px;
+				box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+			}
+			input {
+				width: calc(100% - 20px);
+				padding: 8px;
+				margin: 10px 0;
+				font-size: 16px;
+				border: 1px solid #ccc;
+				border-radius: 5px;
+				text-align: center;
+			}
+			.result {
+				margin-top: 20px;
+				font-size: 18px;
+			}
+			ul {
+				list-style: none;
+				padding: 0;
+			}
+			li {
+				font-size: 16px;
+				background: #f8f8f8;
+				margin: 5px 0;
+				padding: 5px;
+				border-radius: 5px;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<input type="number" id="amount1" placeholder="輸入金額 1" />
+			<input type="number" id="amount2" placeholder="輸入金額 2" />
+			<input type="number" id="parts" placeholder="輸入要分幾等分" min="1" />
+			<div class="result" id="result"></div>
+		</div>
+
+		<script>
+			// 監聽 input 事件，當輸入框值改變時自動更新計算
+			document.querySelectorAll('input').forEach((input) => {
+				input.addEventListener('input', calculateSplit)
+			})
+
+			function calculateSplit() {
+				let amount1 = parseFloat(document.getElementById('amount1').value)
+				let amount2 = parseFloat(document.getElementById('amount2').value)
+				let parts = parseInt(document.getElementById('parts').value)
+
+				if (isNaN(amount1) || isNaN(amount2) || isNaN(parts) || parts <= 0) {
+					document.getElementById('result').innerHTML = '請輸入有效的數字'
+					return
+				}
+
+				let difference = Math.abs(amount2 - amount1) // 計算兩數之間的差
+				let perPart = difference / parts // 平均每一等分
+
+				let resultHTML = `<p>金額差值：${difference.toFixed(2)} 元</p>`
+				resultHTML += `<p>每一等分的價格：</p><ul>`
+
+				for (let i = 1; i <= parts; i++) {
+					resultHTML += `<li>第 ${i} 等分：${perPart.toFixed(2)} 元</li>`
+				}
+				resultHTML += `</ul>`
+				document.getElementById('result').innerHTML = resultHTML
+			}
+		</script>
+	</body>
+</html>
