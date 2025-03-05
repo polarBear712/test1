@@ -58,6 +58,10 @@
 				<input type="number" id="openAmount" value="1000" />
 			</div>
 			<div class="input-group">
+				<label>偏移量:</label>
+				<input type="number" id="offset" value="0" />
+			</div>
+			<div class="input-group">
 				<label>小數點位數:</label>
 				<input type="number" id="decimals" value="2" min="0" max="8" />
 			</div>
@@ -192,6 +196,7 @@
 
 		<script>
 			/* ========== (A) 既有功能: 網格 / 回本 / 獲利計算 ========== */
+			// 增加 offset 參數，使上下限可以加上此偏移量
 			function getGridLimits(gridCount, spacing, openAmount) {
 				const totalRange = gridCount * spacing
 				const halfRange = totalRange / 2
@@ -229,10 +234,9 @@
 
 				// 如果 r=1 => 理論上每段 = totalInvestment/n，但實際要 ceil()
 				if (factor === 1) {
-					const rawEach = totalInvestment / n // 可能有小數
+					const rawEach = totalInvestment / n
 					for (let i = 0; i < n; i++) {
 						let seg = Math.ceil(rawEach)
-						// 檢查是否超過剩餘
 						if (used + seg > totalInvestment) {
 							seg = totalInvestment - used
 						}
@@ -240,7 +244,6 @@
 						used += seg
 						if (used >= totalInvestment) break
 					}
-					// 若還沒到 n 段就用光了，其餘段數補 0
 					while (results.length < n) {
 						results.push(0)
 					}
@@ -260,9 +263,7 @@
 					}
 					results.push(marginUp)
 					used += marginUp
-					// 如果資金已經用完，後面段數就算有，也只能是 0
 					if (used >= totalInvestment) {
-						// 剩下的段數補 0
 						while (results.length < n) {
 							results.push(0)
 						}
@@ -279,8 +280,8 @@
 				if (n <= 0) return results
 
 				for (let i = 0; i < n; i++) {
-					const rawLev = initialLev * Math.pow(factor, i) // 第 i 段理論值
-					const levUp = Math.ceil(rawLev) // 無條件進位
+					const rawLev = initialLev * Math.pow(factor, i)
+					const levUp = Math.ceil(rawLev)
 					results.push(levUp)
 				}
 				return results
@@ -318,7 +319,7 @@
 					n
 				)
 
-				// (3) 槓桿(初始槓桿 + 幾何倍數 + ceil)，無金額限制
+				// (3) 槓桿(初始槓桿 + 幾何倍數 + ceil)
 				const leverages = distributeLeverageByFactorCeil(
 					initialLeverage,
 					leverageFactor,
@@ -345,6 +346,7 @@
 				spacing: document.getElementById('spacing'),
 				openAmount: document.getElementById('openAmount'),
 				decimals: document.getElementById('decimals'),
+				offset: document.getElementById('offset'), // 新增：偏移量
 				// 回本計算
 				investment: document.getElementById('investment'),
 				annualReturn: document.getElementById('annualReturn'),
@@ -381,16 +383,25 @@
 
 			function updateResults() {
 				/* ---- 1. 網格計算結果 ---- */
-				const gridResult = getGridLimits(
-					Number(inputs.gridCount.value),
-					Number(inputs.spacing.value),
-					Number(inputs.openAmount.value)
-				)
+				const gridCountVal = Number(inputs.gridCount.value)
+				const spacingVal = Number(inputs.spacing.value)
+				const openAmountVal = Number(inputs.openAmount.value)
+				const offsetVal = Number(inputs.offset.value)
 				const decimals = Number(inputs.decimals.value)
-				resultElements.upperLimit.textContent =
-					gridResult.upperLimit.toFixed(decimals)
-				resultElements.lowerLimit.textContent =
-					gridResult.lowerLimit.toFixed(decimals)
+
+				// 取得基本上下限
+				const gridResult = getGridLimits(
+					gridCountVal,
+					spacingVal,
+					openAmountVal
+				)
+				// 加上偏移量
+				const adjustedUpper = gridResult.upperLimit + offsetVal
+				const adjustedLower = gridResult.lowerLimit + offsetVal
+
+				// 顯示
+				resultElements.upperLimit.textContent = adjustedUpper.toFixed(decimals)
+				resultElements.lowerLimit.textContent = adjustedLower.toFixed(decimals)
 
 				/* ---- 2. 回本計算結果 ---- */
 				const investment = Number(inputs.investment.value)
@@ -434,11 +445,11 @@
 				segmentedResults.forEach((item) => {
 					const tr = document.createElement('tr')
 					tr.innerHTML = `
-					<td>${item.segmentIndex}</td>
-					<td>${item.price.toFixed(2)}</td>
-					<td>${item.margin}</td>
-					<td>${item.leverage}</td>
-				`
+          <td>${item.segmentIndex}</td>
+          <td>${item.price.toFixed(2)}</td>
+          <td>${item.margin}</td>
+          <td>${item.leverage}</td>
+        `
 					resultElements.tableBody.appendChild(tr)
 				})
 			}
