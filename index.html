@@ -3,83 +3,453 @@
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title></title>
+		<title>網格計算器</title>
 		<style>
-			body {
-				font-family: Arial, sans-serif;
-				text-align: center;
-				margin: 20px;
-			}
-			.container {
-				max-width: 400px;
-				margin: auto;
-				padding: 20px;
-				border: 1px solid #ccc;
-				border-radius: 10px;
-				box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-			}
-			input {
-				width: calc(100% - 20px);
-				padding: 8px;
+			.input-group {
 				margin: 10px 0;
-				font-size: 16px;
-				border: 1px solid #ccc;
-				border-radius: 5px;
-				text-align: center;
+			}
+			.input-group label {
+				display: inline-block;
+				width: 130px;
 			}
 			.result {
 				margin-top: 20px;
-				font-size: 18px;
+				padding: 10px;
+				border: 1px solid #ccc;
 			}
-			ul {
-				list-style: none;
-				padding: 0;
+			.section {
+				margin-bottom: 30px;
 			}
-			li {
-				font-size: 16px;
-				background: #f8f8f8;
-				margin: 5px 0;
-				padding: 5px;
-				border-radius: 5px;
+			h3 {
+				margin-bottom: 15px;
+			}
+			table {
+				border-collapse: collapse;
+				width: 100%;
+				max-width: 600px;
+				margin-top: 10px;
+			}
+			table,
+			th,
+			td {
+				border: 1px solid #ccc;
+			}
+			th,
+			td {
+				padding: 8px;
+				text-align: center;
 			}
 		</style>
 	</head>
 	<body>
-		<div class="container">
-			<input type="number" id="amount1" placeholder="輸入金額 1" />
-			<input type="number" id="amount2" placeholder="輸入金額 2" />
-			<input type="number" id="parts" placeholder="輸入要分幾等分" min="1" />
-			<div class="result" id="result"></div>
+		<!-- (1) 網格範圍計算 -->
+		<div class="section">
+			<h3>網格範圍計算</h3>
+			<div class="input-group">
+				<label>格數:</label>
+				<input type="number" id="gridCount" value="10" />
+			</div>
+			<div class="input-group">
+				<label>每格間隔:</label>
+				<input type="number" id="spacing" value="100" />
+			</div>
+			<div class="input-group">
+				<label>開倉價:</label>
+				<input type="number" id="openAmount" value="1000" />
+			</div>
+			<div class="input-group">
+				<label>小數點位數:</label>
+				<input type="number" id="decimals" value="2" min="0" max="8" />
+			</div>
+
+			<div class="result">
+				<div>
+					上限:
+					<span id="upperLimit">-</span>
+				</div>
+				<div>
+					下限:
+					<span id="lowerLimit">-</span>
+				</div>
+			</div>
+		</div>
+
+		<!-- (2) 回本計算 -->
+		<div class="section">
+			<h3>回本計算</h3>
+			<div class="input-group">
+				<label>投資金額:</label>
+				<input type="number" id="investment" value="10000" />
+			</div>
+			<div class="input-group">
+				<label>年化收益率(%):</label>
+				<input type="number" id="annualReturn" value="10" />
+			</div>
+			<div class="input-group">
+				<label>回本天數:</label>
+				<input type="number" id="days" value="365" />
+			</div>
+
+			<div class="result">
+				<div>
+					所需年化收益率:
+					<span id="requiredReturn">-</span>
+					%
+				</div>
+				<div>
+					回本所需天數:
+					<span id="requiredDays">-</span>
+					天
+				</div>
+			</div>
+		</div>
+
+		<!-- (3) 獲利計算 -->
+		<div class="section">
+			<h3>獲利計算</h3>
+			<div class="input-group">
+				<label>起始金額:</label>
+				<input type="number" id="startAmount" value="1000" />
+			</div>
+			<div class="input-group">
+				<label>結束金額:</label>
+				<input type="number" id="endAmount" value="1100" />
+			</div>
+			<div class="input-group">
+				<label>槓桿倍數:</label>
+				<input type="number" id="leverage" value="1" min="1" />
+			</div>
+
+			<div class="result">
+				<div>
+					獲利比例:
+					<span id="profitPercentage">-</span>
+					%
+				</div>
+				<div>
+					槓桿後獲利比例:
+					<span id="leveragedProfitPercentage">-</span>
+					%
+				</div>
+			</div>
+		</div>
+
+		<!-- (4) 分段買賣: 可自訂分段數 + 幾何級數 + 無條件進位 + 不超過總投資 -->
+		<div class="section">
+			<h3>分段買賣 (可自訂 n 段, 幾何+ceil)</h3>
+
+			<!-- 4A) 投資總金額 -->
+			<div class="input-group">
+				<label>總投資金額 (U):</label>
+				<input type="number" id="totalInvestment" value="100" />
+			</div>
+
+			<!-- 4B) 價格區間 (等距拆分) -->
+			<div class="input-group">
+				<label>第一段價格:</label>
+				<input type="number" id="firstSegmentPrice" value="2000" />
+			</div>
+			<div class="input-group">
+				<label>最後一段價格:</label>
+				<input type="number" id="lastSegmentPrice" value="1000" />
+			</div>
+			<div class="input-group">
+				<label>分段數 n:</label>
+				<input type="number" id="segmentCount" value="5" min="1" />
+			</div>
+
+			<!-- 4C) 下單金額 (幾何級數, 無條件進位) -->
+			<div class="input-group">
+				<label>金額倍數(如1.5):</label>
+				<input type="number" step="0.1" id="marginFactor" value="1.5" />
+			</div>
+
+			<!-- 4D) 槓桿 (可設定初始槓桿, 再用幾何倍數, 無條件進位) -->
+			<div class="input-group">
+				<label>初始槓桿:</label>
+				<input type="number" id="initialLeverage" value="2" />
+			</div>
+			<div class="input-group">
+				<label>槓桿倍數(如1.5):</label>
+				<input type="number" step="0.1" id="leverageFactor" value="1.5" />
+			</div>
+
+			<!-- 4E) 結果表格 -->
+			<div class="result">
+				<table id="segmentedTable">
+					<thead>
+						<tr>
+							<th>段數</th>
+							<th>價格</th>
+							<th>下單金額</th>
+							<th>槓桿</th>
+						</tr>
+					</thead>
+					<tbody></tbody>
+				</table>
+			</div>
 		</div>
 
 		<script>
-			// 監聽 input 事件，當輸入框值改變時自動更新計算
-			document.querySelectorAll('input').forEach((input) => {
-				input.addEventListener('input', calculateSplit)
+			/* ========== (A) 既有功能: 網格 / 回本 / 獲利計算 ========== */
+			function getGridLimits(gridCount, spacing, openAmount) {
+				const totalRange = gridCount * spacing
+				const halfRange = totalRange / 2
+				const lowerLimit = openAmount - halfRange
+				const upperLimit = openAmount + halfRange
+				return { lowerLimit, upperLimit }
+			}
+
+			function calculateRequiredReturn(investment, days) {
+				return ((365 / days) * 100).toFixed(2)
+			}
+
+			function calculateRequiredDays(investment, annualReturn) {
+				return Math.ceil((365 * 100) / annualReturn)
+			}
+
+			function calculateProfitPercentage(startAmount, endAmount) {
+				return (((endAmount - startAmount) / startAmount) * 100).toFixed(2)
+			}
+
+			/* ========== (B) 幾何級數拆分金額, 但每段無條件進位且不超過 total ========== */
+			// 理論公式：若公比 r != 1，總金額 S = M * (1 + r + r^2 + ... + r^(n-1)) => M = S * ((r-1)/(r^n - 1))
+			// 但實作時要對每段做 Math.ceil()，以免有小數；同時若加上該段會超過 total，就只拿剩餘(或 0)，並提早結束。
+			function distributeMarginByFactorCeil(totalInvestment, factor, n) {
+				const results = []
+				let used = 0
+
+				if (n <= 0 || totalInvestment <= 0) return results
+
+				// special case: n=1 => 全部用光(無條件進位後也只能是一筆)
+				if (n === 1) {
+					results.push(totalInvestment) // 直接全用
+					return results
+				}
+
+				// 如果 r=1 => 理論上每段 = totalInvestment/n，但實際要 ceil()
+				if (factor === 1) {
+					const rawEach = totalInvestment / n // 可能有小數
+					for (let i = 0; i < n; i++) {
+						let seg = Math.ceil(rawEach)
+						// 檢查是否超過剩餘
+						if (used + seg > totalInvestment) {
+							seg = totalInvestment - used
+						}
+						results.push(seg)
+						used += seg
+						if (used >= totalInvestment) break
+					}
+					// 若還沒到 n 段就用光了，其餘段數補 0
+					while (results.length < n) {
+						results.push(0)
+					}
+					return results
+				}
+
+				// 一般情況: factor != 1 => 幾何級數
+				const base =
+					totalInvestment * ((factor - 1) / (Math.pow(factor, n) - 1))
+
+				for (let i = 0; i < n; i++) {
+					let rawMargin = base * Math.pow(factor, i) // 第 i 段的理論值
+					let marginUp = Math.ceil(rawMargin) // 無條件進位
+
+					if (used + marginUp > totalInvestment) {
+						marginUp = totalInvestment - used // 只拿剩餘
+					}
+					results.push(marginUp)
+					used += marginUp
+					// 如果資金已經用完，後面段數就算有，也只能是 0
+					if (used >= totalInvestment) {
+						// 剩下的段數補 0
+						while (results.length < n) {
+							results.push(0)
+						}
+						break
+					}
+				}
+
+				return results
+			}
+
+			/* ========== (C) 幾何級數槓桿 (可指定初始槓桿, 再用 factor, 無條件進位) ========== */
+			function distributeLeverageByFactorCeil(initialLev, factor, n) {
+				const results = []
+				if (n <= 0) return results
+
+				for (let i = 0; i < n; i++) {
+					const rawLev = initialLev * Math.pow(factor, i) // 第 i 段理論值
+					const levUp = Math.ceil(rawLev) // 無條件進位
+					results.push(levUp)
+				}
+				return results
+			}
+
+			/* ========== (D) 依分段數 n, 價格等距, 金額/槓桿 幾何 + ceil ========== */
+			function calculateSegmentedOrders({
+				totalInvestment,
+				firstPrice,
+				lastPrice,
+				marginFactor,
+				initialLeverage,
+				leverageFactor,
+				segmentCount,
+			}) {
+				const n = segmentCount
+				if (n <= 0) return []
+
+				// (1) 處理價格等距
+				let prices = []
+				if (n === 1) {
+					prices = [firstPrice]
+				} else {
+					const priceDiff = lastPrice - firstPrice
+					const step = priceDiff / (n - 1)
+					for (let i = 0; i < n; i++) {
+						prices.push(firstPrice + i * step)
+					}
+				}
+
+				// (2) 下單金額(幾何級數 + 無條件進位 + 不超過total)
+				const margins = distributeMarginByFactorCeil(
+					totalInvestment,
+					marginFactor,
+					n
+				)
+
+				// (3) 槓桿(初始槓桿 + 幾何倍數 + ceil)，無金額限制
+				const leverages = distributeLeverageByFactorCeil(
+					initialLeverage,
+					leverageFactor,
+					n
+				)
+
+				// (4) 組合
+				const results = []
+				for (let i = 0; i < n; i++) {
+					results.push({
+						segmentIndex: i + 1,
+						price: prices[i] || 0,
+						margin: margins[i] || 0,
+						leverage: leverages[i] || 0,
+					})
+				}
+				return results
+			}
+
+			/* ========== (E) 綁定 UI & 更新顯示 ========== */
+			const inputs = {
+				// 網格計算
+				gridCount: document.getElementById('gridCount'),
+				spacing: document.getElementById('spacing'),
+				openAmount: document.getElementById('openAmount'),
+				decimals: document.getElementById('decimals'),
+				// 回本計算
+				investment: document.getElementById('investment'),
+				annualReturn: document.getElementById('annualReturn'),
+				days: document.getElementById('days'),
+				// 獲利計算
+				startAmount: document.getElementById('startAmount'),
+				endAmount: document.getElementById('endAmount'),
+				leverage: document.getElementById('leverage'),
+				// 分段買賣
+				totalInvestment: document.getElementById('totalInvestment'),
+				firstSegmentPrice: document.getElementById('firstSegmentPrice'),
+				lastSegmentPrice: document.getElementById('lastSegmentPrice'),
+				segmentCount: document.getElementById('segmentCount'),
+				marginFactor: document.getElementById('marginFactor'),
+				initialLeverage: document.getElementById('initialLeverage'),
+				leverageFactor: document.getElementById('leverageFactor'),
+			}
+
+			const resultElements = {
+				// 網格計算
+				upperLimit: document.getElementById('upperLimit'),
+				lowerLimit: document.getElementById('lowerLimit'),
+				// 回本計算
+				requiredReturn: document.getElementById('requiredReturn'),
+				requiredDays: document.getElementById('requiredDays'),
+				// 獲利計算
+				profitPercentage: document.getElementById('profitPercentage'),
+				leveragedProfitPercentage: document.getElementById(
+					'leveragedProfitPercentage'
+				),
+				// 分段買賣
+				tableBody: document.querySelector('#segmentedTable tbody'),
+			}
+
+			function updateResults() {
+				/* ---- 1. 網格計算結果 ---- */
+				const gridResult = getGridLimits(
+					Number(inputs.gridCount.value),
+					Number(inputs.spacing.value),
+					Number(inputs.openAmount.value)
+				)
+				const decimals = Number(inputs.decimals.value)
+				resultElements.upperLimit.textContent =
+					gridResult.upperLimit.toFixed(decimals)
+				resultElements.lowerLimit.textContent =
+					gridResult.lowerLimit.toFixed(decimals)
+
+				/* ---- 2. 回本計算結果 ---- */
+				const investment = Number(inputs.investment.value)
+				const annualReturn = Number(inputs.annualReturn.value)
+				const days = Number(inputs.days.value)
+				resultElements.requiredReturn.textContent = calculateRequiredReturn(
+					investment,
+					days
+				)
+				resultElements.requiredDays.textContent = calculateRequiredDays(
+					investment,
+					annualReturn
+				)
+
+				/* ---- 3. 獲利計算結果 ---- */
+				const startAmount = Number(inputs.startAmount.value)
+				const endAmount = Number(inputs.endAmount.value)
+				const leverage = Number(inputs.leverage.value)
+				const profitPercentage = calculateProfitPercentage(
+					startAmount,
+					endAmount
+				)
+				resultElements.profitPercentage.textContent = profitPercentage
+				resultElements.leveragedProfitPercentage.textContent = (
+					profitPercentage * leverage
+				).toFixed(2)
+
+				/* ---- 4. 分段買賣 (n 段, 幾何 + ceil) ---- */
+				const segmentedResults = calculateSegmentedOrders({
+					totalInvestment: Number(inputs.totalInvestment.value),
+					firstPrice: Number(inputs.firstSegmentPrice.value),
+					lastPrice: Number(inputs.lastSegmentPrice.value),
+					marginFactor: Number(inputs.marginFactor.value),
+					initialLeverage: Number(inputs.initialLeverage.value),
+					leverageFactor: Number(inputs.leverageFactor.value),
+					segmentCount: Number(inputs.segmentCount.value),
+				})
+
+				// 刷新表格
+				resultElements.tableBody.innerHTML = ''
+				segmentedResults.forEach((item) => {
+					const tr = document.createElement('tr')
+					tr.innerHTML = `
+					<td>${item.segmentIndex}</td>
+					<td>${item.price.toFixed(2)}</td>
+					<td>${item.margin}</td>
+					<td>${item.leverage}</td>
+				`
+					resultElements.tableBody.appendChild(tr)
+				})
+			}
+
+			// 監聽所有輸入
+			Object.values(inputs).forEach((input) => {
+				input.addEventListener('input', updateResults)
 			})
 
-			function calculateSplit() {
-				let amount1 = parseFloat(document.getElementById('amount1').value)
-				let amount2 = parseFloat(document.getElementById('amount2').value)
-				let parts = parseInt(document.getElementById('parts').value)
-
-				if (isNaN(amount1) || isNaN(amount2) || isNaN(parts) || parts <= 0) {
-					document.getElementById('result').innerHTML = '請輸入有效的數字'
-					return
-				}
-
-				let difference = Math.abs(amount2 - amount1) // 計算兩數之間的差
-				let perPart = difference / parts // 平均每一等分
-
-				let resultHTML = `<p>金額差值：${difference.toFixed(2)} 元</p>`
-				resultHTML += `<p>每一等分的價格：</p><ul>`
-
-				for (let i = 1; i <= parts; i++) {
-					resultHTML += `<li>第 ${i} 等分：${perPart.toFixed(2)} 元</li>`
-				}
-				resultHTML += `</ul>`
-				document.getElementById('result').innerHTML = resultHTML
-			}
+			// 頁面載入後先執行一次
+			updateResults()
 		</script>
 	</body>
 </html>
