@@ -381,6 +381,23 @@
 				tableBody: document.querySelector('#segmentedTable tbody'),
 			}
 
+			// 從localStorage讀取保存的值
+			function loadSavedValues() {
+				Object.entries(inputs).forEach(([key, input]) => {
+					const savedValue = localStorage.getItem(key)
+					if (savedValue !== null) {
+						input.value = savedValue
+					}
+				})
+			}
+
+			// 保存值到localStorage
+			function saveValues() {
+				Object.entries(inputs).forEach(([key, input]) => {
+					localStorage.setItem(key, input.value)
+				})
+			}
+
 			function updateResults() {
 				/* ---- 1. 網格計算結果 ---- */
 				const gridCountVal = Number(inputs.gridCount.value)
@@ -452,6 +469,9 @@
         `
 					resultElements.tableBody.appendChild(tr)
 				})
+
+				// 保存當前值到localStorage
+				saveValues()
 			}
 
 			// 監聽所有輸入
@@ -459,7 +479,9 @@
 				input.addEventListener('input', updateResults)
 			})
 
-			// 頁面載入後先執行一次
+			// 頁面載入後先讀取保存的值
+			loadSavedValues()
+			// 然後執行一次計算
 			updateResults()
 		</script>
 	</body>
