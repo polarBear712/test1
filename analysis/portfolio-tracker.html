@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="zh-TW">
+	<head>
+		<meta charset="UTF-8" />
+		<title>價格監控</title>
+		<style>
+			body {
+				font-family: sans-serif;
+				margin: 20px;
+			}
+			.symbol-block {
+				border: 1px solid #ccc;
+				padding: 10px;
+				margin-bottom: 15px;
+				border-radius: 4px;
+				width: 300px;
+			}
+			.alert {
+				font-weight: bold;
+			}
+			.red {
+				color: #f00;
+			}
+			.green {
+				color: #0a0;
+			}
+			.yellow {
+				color: #cc0;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>價格監控</h1>
+
+		<p>
+			請選擇要監控的交易對 (可多選)：
+			<br />
+			<select id="symbolSelect" multiple size="5">
+				<!-- 這裡列出常見交易對，可自行增減 -->
+				<option value="BTCUSDT">BTCUSDT</option>
+				<option value="ETHUSDT">ETHUSDT</option>
+				<option value="KASUSDT">KASUSDT</option>
+				<option value="LTCUSDT">LTCUSDT</option>
+				<option value="IPUSDT">IPUSDT</option>
+			</select>
+		</p>
+		<button id="startBtn">開始監控</button>
+		<hr />
+
+		<div id="app"></div>
+
+		<script>
+			// ---- 參數設定 ----
+			const MAX_KLINES = 1500 // 要保留多少根 K 棒
+			const TOP_N = 10 // 從 MAX_KLINES 中挑出最高/最低的 N 筆做平均
+			const INTERVAL = '3m' // K 棒週期
+			const REST_LIMIT = 1500 // REST API 要抓取的歷史 K 棒數量
+			const ALERT_MARGIN = 0.005 // 接近壓力 / 支撐的距離 (此處以 0.5% 為例)
+
+			// 交易對資料容器 (動態生成)
+			let marketData = {}
+
+			// WebSocket 物件 (若需要重連可參考此變數)
+			let ws = null
+
+			// ---- 從 Binance Futures 取得歷史 K 棒 ----
+			async function fetchHistoricalKlines(
+				symbol,
+				interval = '1m',
+				limit = 30
+			) {
+				const baseUrl = 'https://fapi.binance.com'
+				const endpoint = '/fapi/v1/klines'
+				const url = `${baseUrl}${endpoint}?symbol=${symbol}&interval=${interval}&limit=${limit}`
+				try {
+					const resp = await fetch(url)
+					const data = await resp.json()
+					return data.map((k) => ({
+						t: k[0],
+						o: k[1],
+						h: k[2],
+						l: k[3],
+						c: k[4],
+						v: k[5],
+					}))
+				} catch (err) {
+					console.error('fetchHistoricalKlines 出錯:', err)
+					return []
+				}
+			}
+
+			// ---- 更新支撐 / 壓力 ----
+			function updateSupportResistance(symbol) {
+				const allK = marketData[symbol].klineHistory
+				if (!allK || allK.length === 0) {
+					marketData[symbol].currentResistance = null
+					marketData[symbol].currentSupport = null
+					return
+				}
+
+				const allHighs = allK.map((k) => parseFloat(k.h))
+				const allLows = allK.map((k) => parseFloat(k.l))
+
+				// 取最高 TOP_N
+				const sortedHighs = allHighs.sort((a, b) => b - a)
+				const topNHighs = sortedHighs.slice(
+					0,
+					Math.min(TOP_N, sortedHighs.length)
+				)
+
+				// 取最低 TOP_N
+				const sortedLows = allLows.sort((a, b) => a - b)
+				const topNLows = sortedLows.slice(0, Math.min(TOP_N, sortedLows.length))
+
+				// 計算平均
+				if (topNHighs.length > 0) {
+					const sumHigh = topNHighs.reduce((acc, val) => acc + val, 0)
+					marketData[symbol].currentResistance = sumHigh / topNHighs.length
+				} else {
+					marketData[symbol].currentResistance = null
+				}
+
+				if (topNLows.length > 0) {
+					const sumLow = topNLows.reduce((acc, val) => acc + val, 0)
+					marketData[symbol].currentSupport = sumLow / topNLows.length
+				} else {
+					marketData[symbol].currentSupport = null
+				}
+			}
+
+			// ---- 檢查提醒 ----
+			function checkAlerts(symbol) {
+				const latestPrice = marketData[symbol].latestPrice
+				const currentRes = marketData[symbol].currentResistance
+				const currentSup = marketData[symbol].currentSupport
+
+				const alertDiv = document.getElementById(`${symbol}-alert`)
+				if (!alertDiv) return // 若該 symbol 區塊還沒建立, 直接不處理
+
+				if (latestPrice == null || currentRes == null || currentSup == null) {
+					alertDiv.textContent = ''
+					return
+				}
+
+				// 1) 是否突破壓力 / 跌破支撐
+				if (latestPrice > currentRes) {
+					alertDiv.innerHTML = `<span class="red">!!! ${symbol} 注意 !!! 價格突破壓力: ${latestPrice.toFixed(4)}</span>`
+					return
+				} else if (latestPrice < currentSup) {
+					alertDiv.innerHTML = `<span class="green">!!! ${symbol} 注意 !!! 價格跌破支撐: ${latestPrice.toFixed(4)}</span>`
+					return
+				}
+
+				// 2) 區間內，判斷是否接近壓力 / 支撐
+				let msg = ''
+				// 接近壓力
+				if (currentRes > 0) {
+					const diffRes = Math.abs(latestPrice - currentRes) / currentRes
+					if (diffRes <= ALERT_MARGIN) {
+						msg += `<span class="yellow">${symbol} 價格接近壓力(${currentRes.toFixed(4)})！</span> `
+					}
+				}
+				// 接近支撐
+				if (currentSup > 0) {
+					const diffSup = Math.abs(latestPrice - currentSup) / currentSup
+					if (diffSup <= ALERT_MARGIN) {
+						msg += `<span class="yellow">${symbol} 價格接近支撐(${currentSup.toFixed(4)})！</span>`
+					}
+				}
+
+				alertDiv.innerHTML = msg
+			}
+
+			// ---- WebSocket 收到訊息時 ----
+			function onMessage(data) {
+				const stream = data.stream || ''
+				if (!stream) return
+
+				const parts = stream.split('@')
+				if (parts.length < 2) return
+
+				const symbolLower = parts[0] // e.g. "btcusdt"
+				const symbolUpper = symbolLower.toUpperCase()
+
+				if (!marketData[symbolUpper]) {
+					// 不在我們訂閱的名單裡
+					return
+				}
+
+				// 1) 處理 miniTicker (即時價格)
+				if (stream.endsWith('miniTicker')) {
+					// miniTicker 結構: { e: "24hrMiniTicker", E: 123456789, s: "BTCUSDT", c: " 最新成交價", ... }
+					const miniData = data.data || {}
+					const closePrice = parseFloat(miniData.c)
+					if (!isNaN(closePrice)) {
+						// 更新 latestPrice
+						marketData[symbolUpper].latestPrice = closePrice
+						// 立即更新 UI (不等 K 棒收線)
+						updateUI(symbolUpper)
+					}
+					return
+				}
+
+				// 2) 處理 kline 資料 (用來計算壓力/支撐)
+				if (stream.includes('kline_')) {
+					const klineData = data.data?.k || {}
+					// "x" = true -> 代表該 K 棒收線
+					if (klineData.x) {
+						// 收線後，推進歷史 K 棒
+						const klineInfo = {
+							t: klineData.t,
+							o: klineData.o,
+							h: klineData.h,
+							l: klineData.l,
+							c: klineData.c,
+							v: klineData.v,
+						}
+						marketData[symbolUpper].klineHistory.push(klineInfo)
+
+						// 若超過 MAX_KLINES 就丟掉最舊的
+						if (marketData[symbolUpper].klineHistory.length > MAX_KLINES) {
+							marketData[symbolUpper].klineHistory.shift()
+						}
+
+						// 更新壓力 / 支撐
+						updateSupportResistance(symbolUpper)
+						// 再更新 UI (壓力/支撐、K棒數量)
+						updateUI(symbolUpper)
+					}
+				}
+			}
+
+			// ---- 更新畫面上的資訊 ----
+			function updateUI(symbol) {
+				const latestPrice = marketData[symbol].latestPrice
+				const curRes = marketData[symbol].currentResistance
+				const curSup = marketData[symbol].currentSupport
+				const kCount = marketData[symbol].klineHistory.length
+
+				// 找到對應的 DOM
+				const priceDiv = document.getElementById(`${symbol}-price`)
+				const resDiv = document.getElementById(`${symbol}-res`)
+				const supDiv = document.getElementById(`${symbol}-sup`)
+				const midDiv = document.getElementById(`${symbol}-mid`)
+				const kcountDiv = document.getElementById(`${symbol}-kcount`)
+
+				if (priceDiv) {
+					priceDiv.textContent = `最新價格: ${
+						latestPrice != null ? latestPrice.toFixed(4) : '-'
+					}`
+				}
+				if (kcountDiv) {
+					kcountDiv.textContent = `K棒數量: ${kCount} / ${MAX_KLINES}`
+				}
+
+				// 壓力/支撐
+				if (curRes && curSup) {
+					resDiv.textContent = `壓力(最高${TOP_N}平均): ${curRes.toFixed(4)}`
+					supDiv.textContent = `支撐(最低${TOP_N}平均): ${curSup.toFixed(4)}`
+					const midVal = (curRes + curSup) / 2
+					midDiv.textContent = `中間值: ${midVal.toFixed(4)}`
+				} else {
+					resDiv.textContent = '壓力(最高N平均): 暫無'
+					supDiv.textContent = '支撐(最低N平均): 暫無'
+					midDiv.textContent = '中間值: -'
+				}
+
+				// 最後檢查一下是否要警示
+				checkAlerts(symbol)
+			}
+
+			// ---- 依照使用者選取的交易對，建立監控區塊 & 初始化資料 ----
+			async function startMonitor(selectedSymbols) {
+				// 1) 若已有 ws，先關閉 (避免重複連線)
+				if (ws) {
+					ws.onclose = null
+					ws.close()
+					ws = null
+				}
+
+				// 2) 清空畫面 & marketData
+				document.getElementById('app').innerHTML = ''
+				marketData = {}
+
+				// 3) 針對每個交易對建立一塊畫面區塊 + 初始化
+				for (let sym of selectedSymbols) {
+					marketData[sym] = {
+						klineHistory: [],
+						currentResistance: null,
+						currentSupport: null,
+						latestPrice: null,
+					}
+
+					const block = document.createElement('div')
+					block.className = 'symbol-block'
+					block.id = `block-${sym}`
+
+					block.innerHTML = `
+            <h2>${sym}</h2>
+            <div id="${sym}-price">最新價格: -</div>
+            <div id="${sym}-res">壓力(最高${TOP_N}平均): -</div>
+            <div id="${sym}-sup">支撐(最低${TOP_N}平均): -</div>
+            <div id="${sym}-mid">中間值: -</div>
+            <div id="${sym}-kcount">K棒數量: 0 / ${MAX_KLINES}</div>
+            <div id="${sym}-alert" class="alert"></div>
+          `
+					document.getElementById('app').appendChild(block)
+				}
+
+				// 4) 先抓取各交易對的歷史 K 棒，初始化 klineHistory
+				for (let sym of selectedSymbols) {
+					const historicalData = await fetchHistoricalKlines(
+						sym,
+						INTERVAL,
+						REST_LIMIT
+					)
+					marketData[sym].klineHistory = [...historicalData]
+
+					// 預先更新壓力 / 支撐
+					updateSupportResistance(sym)
+
+					// 預先更新一下畫面 (若有抓到資料，可先顯示初始壓力/支撐)
+					updateUI(sym)
+
+					console.log(`${sym} 歷史 K 棒: ${historicalData.length} 根`)
+				}
+
+				// 5) 建立新的 WebSocket 並訂閱所選交易對 (kline + miniTicker)
+				ws = new WebSocket('wss://fstream.binance.com/stream')
+
+				ws.onopen = () => {
+					console.log('WebSocket 已連線')
+					const params = []
+					selectedSymbols.forEach((sym) => {
+						// 訂閱 kline
+						params.push(`${sym.toLowerCase()}@kline_${INTERVAL}`)
+						// 訂閱 miniTicker → 及時更新最新價格
+						params.push(`${sym.toLowerCase()}@miniTicker`)
+					})
+					const payload = {
+						method: 'SUBSCRIBE',
+						params: params,
+						id: 1,
+					}
+					ws.send(JSON.stringify(payload))
+					console.log('已發送訂閱:', params)
+				}
+
+				ws.onmessage = (event) => {
+					const msg = JSON.parse(event.data)
+					onMessage(msg)
+				}
+
+				ws.onerror = (err) => {
+					console.error('WebSocket 出錯:', err)
+				}
+
+				ws.onclose = () => {
+					console.warn('WebSocket 連線關閉')
+					// 若需要可在此做自動重連
+				}
+			}
+
+			// ---- 主程式入口：綁定按鈕事件 ----
+			document.getElementById('startBtn').addEventListener('click', () => {
+				const selectEl = document.getElementById('symbolSelect')
+				// 抓取使用者多選的交易對
+				const selectedSymbols = Array.from(selectEl.selectedOptions).map(
+					(opt) => opt.value
+				)
+
+				if (selectedSymbols.length === 0) {
+					alert('請至少選擇一個交易對!')
+					return
+				}
+				// 開始監控
+				startMonitor(selectedSymbols)
+			})
+		</script>
+	</body>
+</html>

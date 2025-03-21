@@ -1,0 +1,868 @@
+<!doctype html>
+<html lang="zh-CN">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>合約訂單系統</title>
+		<style>
+			body {
+				font-family: Arial, sans-serif;
+				max-width: 800px;
+				margin: 0 auto;
+				padding: 20px;
+			}
+			.container {
+				border: 1px solid #ddd;
+				border-radius: 5px;
+				padding: 20px;
+				margin-bottom: 20px;
+			}
+			.form-group {
+				margin-bottom: 15px;
+			}
+			label {
+				display: block;
+				margin-bottom: 5px;
+				font-weight: bold;
+			}
+			input,
+			select {
+				width: 100%;
+				padding: 8px;
+				border: 1px solid #ddd;
+				border-radius: 4px;
+				box-sizing: border-box;
+			}
+			button {
+				background-color: #4caf50;
+				color: white;
+				padding: 10px 15px;
+				border: none;
+				border-radius: 4px;
+				cursor: pointer;
+				font-size: 16px;
+			}
+			button:hover {
+				background-color: #45a049;
+			}
+			table {
+				width: 100%;
+				border-collapse: collapse;
+				margin-top: 20px;
+			}
+			th,
+			td {
+				border: 1px solid #ddd;
+				padding: 8px;
+				text-align: left;
+			}
+			th {
+				background-color: #f2f2f2;
+			}
+			tr:nth-child(even) {
+				background-color: #f9f9f9;
+			}
+			.switch {
+				position: relative;
+				display: inline-block;
+				width: 60px;
+				height: 34px;
+			}
+			.switch input {
+				opacity: 0;
+				width: 0;
+				height: 0;
+			}
+			.slider {
+				position: absolute;
+				cursor: pointer;
+				top: 0;
+				left: 0;
+				right: 0;
+				bottom: 0;
+				background-color: #ccc;
+				transition: 0.4s;
+				border-radius: 34px;
+			}
+			.slider:before {
+				position: absolute;
+				content: '';
+				height: 26px;
+				width: 26px;
+				left: 4px;
+				bottom: 4px;
+				background-color: white;
+				transition: 0.4s;
+				border-radius: 50%;
+			}
+			input:checked + .slider {
+				background-color: #2196f3;
+			}
+			input:checked + .slider:before {
+				transform: translateX(26px);
+			}
+			.api-settings {
+				margin-top: 20px;
+				padding: 15px;
+				background-color: #f9f9f9;
+				border-radius: 5px;
+			}
+			.loading {
+				display: none;
+				margin-left: 10px;
+			}
+			.error-message {
+				color: red;
+				margin-top: 10px;
+				display: none;
+			}
+			.success-message {
+				color: green;
+				margin-top: 10px;
+				display: none;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>合約訂單系統</h1>
+
+		<div class="container">
+			<h2>訂單參數設置</h2>
+			<div class="form-group">
+				<label for="symbol">幣種</label>
+				<select id="symbol">
+					<option value="BTCUSDT">BTC/USDT</option>
+					<option value="ETHUSDT">ETH/USDT</option>
+					<option value="BNBUSDT">BNB/USDT</option>
+					<option value="SOLUSDT">SOL/USDT</option>
+					<option value="ADAUSDT">ADA/USDT</option>
+				</select>
+			</div>
+
+			<div class="form-group">
+				<label for="totalInvestment">總投資金額 (USDT)</label>
+				<input type="number" id="totalInvestment" value="1000" min="1" />
+			</div>
+
+			<div class="form-group">
+				<label for="firstPrice">首倉價位</label>
+				<input
+					type="number"
+					id="firstPrice"
+					value="50000"
+					step="0.01"
+					min="0.01"
+				/>
+			</div>
+
+			<div class="form-group">
+				<label for="lastPrice">尾倉價位</label>
+				<input
+					type="number"
+					id="lastPrice"
+					value="40000"
+					step="0.01"
+					min="0.01"
+				/>
+			</div>
+
+			<div class="form-group">
+				<label for="positionCount">開倉數量</label>
+				<input type="number" id="positionCount" value="5" min="1" max="20" />
+			</div>
+
+			<div class="form-group">
+				<label for="marginFactor">加倉倍數</label>
+				<input type="number" id="marginFactor" value="1.5" step="0.1" min="1" />
+			</div>
+
+			<div class="form-group">
+				<label for="leverage">槓桿</label>
+				<input
+					type="number"
+					id="leverage"
+					value="10"
+					min="1"
+					max="125"
+					step="1"
+				/>
+			</div>
+
+			<div class="form-group">
+				<label for="leverageFactor">槓桿倍數</label>
+				<input
+					type="number"
+					id="leverageFactor"
+					value="1.0"
+					step="0.1"
+					min="1"
+				/>
+			</div>
+
+			<div class="form-group">
+				<label for="maxLoss">最大止損金額 (USDT)</label>
+				<input type="number" id="maxLoss" value="200" min="1" />
+			</div>
+
+			<div class="form-group">
+				<label for="lossFactor">止損倍數</label>
+				<input type="number" id="lossFactor" value="1.2" step="0.1" min="1" />
+			</div>
+
+			<div class="form-group">
+				<label for="direction">交易方向</label>
+				<select id="direction">
+					<option value="LONG">做多</option>
+					<option value="SHORT">做空</option>
+				</select>
+			</div>
+
+			<div class="form-group">
+				<label for="decimalPlaces">小數位數</label>
+				<select id="decimalPlaces">
+					<option value="2">2</option>
+					<option value="3">3</option>
+					<option value="4">4</option>
+					<option value="5">5</option>
+					<option value="6">6</option>
+				</select>
+			</div>
+
+			<div class="form-group">
+				<label for="isTestnet">交易模式</label>
+				<div style="display: flex; align-items: center">
+					<span>模擬交易</span>
+					<label class="switch" style="margin: 0 10px">
+						<input type="checkbox" id="isTestnet" checked />
+						<span class="slider"></span>
+					</label>
+					<span>實盤交易</span>
+				</div>
+			</div>
+
+			<div class="api-settings">
+				<h3>幣安API設置</h3>
+				<div class="form-group">
+					<label for="apiKey">API Key</label>
+					<input type="text" id="apiKey" placeholder="輸入您的幣安API Key" />
+				</div>
+				<div class="form-group">
+					<label for="secretKey">Secret Key</label>
+					<input
+						type="password"
+						id="secretKey"
+						placeholder="輸入您的幣安Secret Key"
+					/>
+				</div>
+				<button id="saveApiKeys">保存API密鑰</button>
+				<div id="apiStatus"></div>
+			</div>
+		</div>
+
+		<div class="container" id="orderDetails">
+			<h2>訂單詳情</h2>
+			<table id="orderTable">
+				<thead>
+					<tr>
+						<th>序號</th>
+						<th>價格</th>
+						<th>投資金額</th>
+						<th>槓桿</th>
+						<th>合約數量</th>
+						<th>止損價</th>
+						<th>最大虧損</th>
+					</tr>
+				</thead>
+				<tbody id="orderTableBody">
+					<!-- 訂單詳情將在這裡動態生成 -->
+				</tbody>
+			</table>
+
+			<div style="margin-top: 20px">
+				<button id="submitOrders">確認下單</button>
+				<span id="loading" class="loading">處理中...</span>
+				<div id="errorMessage" class="error-message"></div>
+				<div id="successMessage" class="success-message"></div>
+			</div>
+		</div>
+
+		<script>
+			// 從localStorage加載保存的設置
+			function loadSettings() {
+				const inputs = document.querySelectorAll('input, select')
+				inputs.forEach((input) => {
+					const savedValue = localStorage.getItem(input.id)
+					if (savedValue !== null) {
+						if (input.type === 'checkbox') {
+							input.checked = savedValue === 'true'
+						} else {
+							input.value = savedValue
+						}
+					}
+				})
+
+				// 加載API密鑰
+				const apiKey = localStorage.getItem('apiKey')
+				const secretKey = localStorage.getItem('secretKey')
+				if (apiKey) document.getElementById('apiKey').value = apiKey
+				if (secretKey) document.getElementById('secretKey').value = secretKey
+			}
+
+			// 保存設置到localStorage
+			function saveSettings(id, value) {
+				localStorage.setItem(id, value)
+			}
+
+			// 初始化頁面時加載設置
+			loadSettings()
+
+			// 為所有輸入添加事件監聽器
+			const inputs = document.querySelectorAll('input, select')
+			inputs.forEach((input) => {
+				input.addEventListener('change', function () {
+					if (this.type === 'checkbox') {
+						saveSettings(this.id, this.checked)
+					} else {
+						saveSettings(this.id, this.value)
+					}
+					updateOrders()
+				})
+				input.addEventListener('input', function () {
+					saveSettings(this.id, this.value)
+					updateOrders()
+				})
+			})
+
+			// 保存API密鑰
+			document
+				.getElementById('saveApiKeys')
+				.addEventListener('click', function () {
+					const apiKey = document.getElementById('apiKey').value.trim()
+					const secretKey = document.getElementById('secretKey').value.trim()
+
+					if (apiKey && secretKey) {
+						localStorage.setItem('apiKey', apiKey)
+						localStorage.setItem('secretKey', secretKey)
+						document.getElementById('apiStatus').innerHTML =
+							'<p style="color: green;">API密鑰已保存</p>'
+					} else {
+						document.getElementById('apiStatus').innerHTML =
+							'<p style="color: red;">請輸入有效的API密鑰</p>'
+					}
+				})
+
+			// 更新訂單詳情
+			function updateOrders() {
+				const symbol = document.getElementById('symbol').value
+				const totalInvestment = parseFloat(
+					document.getElementById('totalInvestment').value
+				)
+				const firstPrice = parseFloat(
+					document.getElementById('firstPrice').value
+				)
+				const lastPrice = parseFloat(document.getElementById('lastPrice').value)
+				const positionCount = parseInt(
+					document.getElementById('positionCount').value
+				)
+				const marginFactor = parseFloat(
+					document.getElementById('marginFactor').value
+				)
+				const leverage = parseInt(document.getElementById('leverage').value)
+				const leverageFactor = parseFloat(
+					document.getElementById('leverageFactor').value
+				)
+				const maxLoss = parseFloat(document.getElementById('maxLoss').value)
+				const lossFactor = parseFloat(
+					document.getElementById('lossFactor').value
+				)
+				const direction = document.getElementById('direction').value
+				const decimalPlaces = parseInt(
+					document.getElementById('decimalPlaces').value
+				)
+
+				// 計算訂單詳情
+				const orders = calculateOrders({
+					totalInvestment,
+					firstPrice,
+					lastPrice,
+					positionCount,
+					marginFactor,
+					leverage,
+					leverageFactor,
+					maxLoss,
+					lossFactor,
+					direction,
+					decimalPlaces,
+				})
+
+				// 顯示訂單詳情
+				displayOrders(orders, symbol, decimalPlaces)
+			}
+
+			document
+				.getElementById('submitOrders')
+				.addEventListener('click', async function () {
+					const loading = document.getElementById('loading')
+					const errorMessage = document.getElementById('errorMessage')
+					const successMessage = document.getElementById('successMessage')
+
+					// 重置消息
+					loading.style.display = 'inline'
+					errorMessage.style.display = 'none'
+					errorMessage.textContent = ''
+					successMessage.style.display = 'none'
+					successMessage.textContent = ''
+
+					const apiKey = localStorage.getItem('apiKey')
+					const secretKey = localStorage.getItem('secretKey')
+
+					if (!apiKey || !secretKey) {
+						loading.style.display = 'none'
+						errorMessage.textContent = '請先設置有效的API密鑰'
+						errorMessage.style.display = 'block'
+						return
+					}
+
+					const isTestnet = document.getElementById('isTestnet').checked
+					const symbol = document.getElementById('symbol').value
+					const direction = document.getElementById('direction').value
+					const leverage = parseInt(document.getElementById('leverage').value)
+
+					try {
+						// 獲取計算好的訂單
+						const orders = calculateOrders({
+							totalInvestment: parseFloat(
+								document.getElementById('totalInvestment').value
+							),
+							firstPrice: parseFloat(
+								document.getElementById('firstPrice').value
+							),
+							lastPrice: parseFloat(document.getElementById('lastPrice').value),
+							positionCount: parseInt(
+								document.getElementById('positionCount').value
+							),
+							marginFactor: parseFloat(
+								document.getElementById('marginFactor').value
+							),
+							leverage: leverage,
+							leverageFactor: parseFloat(
+								document.getElementById('leverageFactor').value
+							),
+							maxLoss: parseFloat(document.getElementById('maxLoss').value),
+							lossFactor: parseFloat(
+								document.getElementById('lossFactor').value
+							),
+							direction: direction,
+							decimalPlaces: parseInt(
+								document.getElementById('decimalPlaces').value
+							),
+						})
+
+						// 設置槓桿
+						await setLeverage(apiKey, secretKey, symbol, leverage, isTestnet)
+
+						// 下單
+						const results = await placeOrders(
+							apiKey,
+							secretKey,
+							symbol,
+							orders,
+							direction,
+							isTestnet
+						)
+
+						loading.style.display = 'none'
+						successMessage.textContent = `成功下單 ${results.length} 個訂單！${isTestnet ? '(模擬交易)' : '(實盤交易)'}`
+						successMessage.style.display = 'block'
+					} catch (error) {
+						loading.style.display = 'none'
+						errorMessage.textContent = `下單失敗: ${error.message}`
+						errorMessage.style.display = 'block'
+						console.error('下單錯誤:', error)
+					}
+				})
+
+			// 設置槓桿
+			async function setLeverage(
+				apiKey,
+				secretKey,
+				symbol,
+				leverage,
+				isTestnet
+			) {
+				const baseUrl = isTestnet
+					? 'https://testnet.binancefuture.com'
+					: 'https://fapi.binance.com'
+
+				const timestamp = Date.now()
+				const queryString = `symbol=${symbol}&leverage=${leverage}&timestamp=${timestamp}`
+
+				// 生成簽名
+				const signature = await generateSignature(secretKey, queryString)
+
+				const response = await fetch(
+					`${baseUrl}/fapi/v1/leverage?${queryString}&signature=${signature}`,
+					{
+						method: 'POST',
+						headers: {
+							'X-MBX-APIKEY': apiKey,
+							'Content-Type': 'application/json',
+						},
+					}
+				)
+
+				if (!response.ok) {
+					const errorData = await response.json()
+					throw new Error(
+						`設置槓桿失敗: ${errorData.msg || response.statusText}`
+					)
+				}
+
+				return await response.json()
+			}
+
+			// 下單函數
+			async function placeOrders(
+				apiKey,
+				secretKey,
+				symbol,
+				orders,
+				direction,
+				isTestnet
+			) {
+				const baseUrl = isTestnet
+					? 'https://testnet.binancefuture.com'
+					: 'https://fapi.binance.com'
+
+				const results = []
+
+				for (const order of orders) {
+					const timestamp = Date.now()
+					const side = direction === 'LONG' ? 'BUY' : 'SELL'
+					const positionSide = direction === 'LONG' ? 'LONG' : 'SHORT'
+
+					// 準備訂單參數
+					const orderParams = {
+						symbol: symbol,
+						side: side,
+						positionSide: positionSide,
+						type: 'LIMIT',
+						timeInForce: 'GTC',
+						quantity: order.contractSize.toFixed(3),
+						price: order.price.toFixed(2),
+						timestamp: timestamp,
+					}
+
+					// 構建查詢字符串
+					const queryString = Object.entries(orderParams)
+						.map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+						.join('&')
+
+					// 生成簽名
+					const signature = await generateSignature(secretKey, queryString)
+
+					// 發送請求
+					const response = await fetch(
+						`${baseUrl}/fapi/v1/order?${queryString}&signature=${signature}`,
+						{
+							method: 'POST',
+							headers: {
+								'X-MBX-APIKEY': apiKey,
+								'Content-Type': 'application/json',
+							},
+						}
+					)
+
+					console.error(response, 'response')
+
+					if (!response.ok) {
+						const errorData = await response.json()
+						throw new Error(`下單失敗: ${errorData.msg || response.statusText}`)
+					}
+
+					const result = await response.json()
+					results.push(result)
+
+					// 設置止損單
+					await placeStopLossOrder(
+						apiKey,
+						secretKey,
+						symbol,
+						direction === 'LONG' ? 'SELL' : 'BUY',
+						direction === 'LONG' ? 'LONG' : 'SHORT',
+						order.contractSize.toFixed(3),
+						order.stopLossPrice.toFixed(2),
+						isTestnet
+					)
+
+					// 添加延遲，避免API限制
+					await new Promise((resolve) => setTimeout(resolve, 500))
+				}
+
+				return results
+			}
+
+			// 設置止損單
+			async function placeStopLossOrder(
+				apiKey,
+				secretKey,
+				symbol,
+				side,
+				positionSide,
+				quantity,
+				stopPrice,
+				isTestnet
+			) {
+				const baseUrl = isTestnet
+					? 'https://testnet.binancefuture.com'
+					: 'https://fapi.binance.com'
+
+				const timestamp = Date.now()
+
+				// 準備止損單參數
+				const stopLossParams = {
+					symbol: symbol,
+					side: side,
+					positionSide: positionSide,
+					type: 'STOP_MARKET',
+					timeInForce: 'GTC',
+					quantity: quantity,
+					stopPrice: stopPrice,
+					closePosition: 'true',
+					timestamp: timestamp,
+				}
+
+				// 構建查詢字符串
+				const queryString = Object.entries(stopLossParams)
+					.map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
+					.join('&')
+
+				// 生成簽名
+				const signature = await generateSignature(secretKey, queryString)
+
+				// 發送請求
+				const response = await fetch(
+					`${baseUrl}/fapi/v1/order?${queryString}&signature=${signature}`,
+					{
+						method: 'POST',
+						headers: {
+							'X-MBX-APIKEY': apiKey,
+							'Content-Type': 'application/json',
+						},
+					}
+				)
+
+				if (!response.ok) {
+					const errorData = await response.json()
+					throw new Error(
+						`設置止損單失敗: ${errorData.msg || response.statusText}`
+					)
+				}
+
+				return await response.json()
+			}
+
+			// 生成簽名
+			async function generateSignature(secretKey, queryString) {
+				// 使用Web Crypto API生成HMAC簽名
+				const encoder = new TextEncoder()
+				const key = await crypto.subtle.importKey(
+					'raw',
+					encoder.encode(secretKey),
+					{ name: 'HMAC', hash: 'SHA-256' },
+					false,
+					['sign']
+				)
+
+				const signature = await crypto.subtle.sign(
+					'HMAC',
+					key,
+					encoder.encode(queryString)
+				)
+
+				// 轉換為十六進制字符串
+				return Array.from(new Uint8Array(signature))
+					.map((b) => b.toString(16).padStart(2, '0'))
+					.join('')
+			}
+
+			function calculateOrders(params) {
+				const {
+					totalInvestment,
+					firstPrice,
+					lastPrice,
+					positionCount,
+					marginFactor,
+					leverage,
+					leverageFactor,
+					maxLoss,
+					lossFactor,
+					direction,
+					decimalPlaces,
+				} = params
+
+				const orders = []
+
+				// 計算價格序列
+				const prices = []
+				if (positionCount === 1) {
+					prices.push(firstPrice)
+				} else {
+					const step = (lastPrice - firstPrice) / (positionCount - 1)
+					for (let i = 0; i < positionCount; i++) {
+						prices.push(firstPrice + i * step)
+					}
+				}
+
+				// 計算投資金額分配（幾何級數）
+				const margins = distributeMarginByFactor(
+					totalInvestment,
+					marginFactor,
+					positionCount
+				)
+
+				// 計算槓桿分配
+				const leverages = distributeLeverageByFactor(
+					leverage,
+					leverageFactor,
+					positionCount
+				)
+
+				// 計算止損金額分配
+				const losses = distributeLossByFactor(
+					maxLoss,
+					lossFactor,
+					positionCount
+				)
+
+				// 生成訂單詳情
+				for (let i = 0; i < positionCount; i++) {
+					const price = prices[i]
+					const margin = margins[i]
+					const currentLeverage = leverages[i]
+					const maxLossAmount = losses[i]
+
+					// 計算合約數量
+					const contractSize = (margin * currentLeverage) / price
+
+					// 計算止損價格
+					let stopLossPrice
+					if (direction === 'LONG') {
+						// 做多，止損價格在下方
+						stopLossPrice =
+							price * (1 - maxLossAmount / (margin * currentLeverage))
+					} else {
+						// 做空，止損價格在上方
+						stopLossPrice =
+							price * (1 + maxLossAmount / (margin * currentLeverage))
+					}
+
+					orders.push({
+						index: i + 1,
+						price: price,
+						margin: margin,
+						leverage: currentLeverage,
+						contractSize: contractSize,
+						stopLossPrice: stopLossPrice,
+						maxLossAmount: maxLossAmount,
+					})
+				}
+
+				return orders
+			}
+
+			function distributeMarginByFactor(total, factor, count) {
+				const margins = []
+
+				if (factor === 1 || count === 1) {
+					// 平均分配
+					const equalMargin = total / count
+					for (let i = 0; i < count; i++) {
+						margins.push(equalMargin)
+					}
+				} else {
+					// 幾何級數分配
+					// 計算幾何級數和: a + a*r + a*r^2 + ... + a*r^(n-1) = a * (1-r^n)/(1-r)
+					// 其中a是第一項，r是公比，n是項數
+					// 我們需要求解a，使得和等於total
+					const sum = (1 - Math.pow(factor, count)) / (1 - factor)
+					const firstMargin = total / sum
+
+					for (let i = 0; i < count; i++) {
+						margins.push(firstMargin * Math.pow(factor, i))
+					}
+				}
+
+				return margins
+			}
+
+			function distributeLeverageByFactor(baseLeverage, factor, count) {
+				const leverages = []
+
+				if (factor === 1 || count === 1) {
+					// 所有倉位使用相同槓桿
+					for (let i = 0; i < count; i++) {
+						leverages.push(baseLeverage)
+					}
+				} else {
+					// 幾何級數分配槓桿
+					for (let i = 0; i < count; i++) {
+						const currentLeverage = Math.floor(
+							baseLeverage * Math.pow(factor, i)
+						)
+						// 確保槓桿不超過125
+						leverages.push(Math.min(currentLeverage, 125))
+					}
+				}
+
+				return leverages
+			}
+
+			function distributeLossByFactor(totalLoss, factor, count) {
+				const losses = []
+
+				if (factor === 1 || count === 1) {
+					// 平均分配
+					const equalLoss = totalLoss / count
+					for (let i = 0; i < count; i++) {
+						losses.push(equalLoss)
+					}
+				} else {
+					// 幾何級數分配
+					const sum = (1 - Math.pow(factor, count)) / (1 - factor)
+					const firstLoss = totalLoss / sum
+
+					for (let i = 0; i < count; i++) {
+						losses.push(firstLoss * Math.pow(factor, i))
+					}
+				}
+
+				return losses
+			}
+
+			function displayOrders(orders, symbol, decimalPlaces) {
+				const tableBody = document.getElementById('orderTableBody')
+				tableBody.innerHTML = ''
+
+				orders.forEach((order) => {
+					const row = document.createElement('tr')
+
+					row.innerHTML = `
+                    <td>${order.index}</td>
+                    <td>${order.price.toFixed(decimalPlaces)}</td>
+                    <td>${order.margin.toFixed(decimalPlaces)}</td>
+                    <td>${order.leverage}x</td>
+                    <td>${order.contractSize.toFixed(decimalPlaces)}</td>
+                    <td>${order.stopLossPrice.toFixed(decimalPlaces)}</td>
+                    <td>${order.maxLossAmount.toFixed(decimalPlaces)}</td>
+                `
+
+					tableBody.appendChild(row)
+				})
+			}
+
+			// 初始加載時更新訂單
+			updateOrders()
+		</script>
+	</body>
+</html>

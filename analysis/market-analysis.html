@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="zh-TW">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>加密貨幣平均震盪幅度排行</title>
+		<style>
+			body {
+				background-color: #fafafa;
+				font-family: Arial, sans-serif;
+				padding: 20px;
+			}
+			.container {
+				max-width: 800px;
+				margin: 0 auto;
+				background-color: #fff;
+				border-radius: 10px;
+				padding: 20px;
+				box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+			}
+			h1 {
+				text-align: center;
+				color: #333;
+			}
+			.result-table {
+				width: 100%;
+				border-collapse: collapse;
+				margin-top: 20px;
+			}
+			.result-table th,
+			.result-table td {
+				border: 1px solid #e0e0e0;
+				padding: 10px;
+				text-align: center;
+			}
+			.result-table th {
+				background-color: #f2f2f2;
+			}
+			.result-table tr:nth-child(even) {
+				background-color: #f9f9f9;
+			}
+			.btn-fetch {
+				display: block;
+				margin: 20px auto;
+				padding: 10px 20px;
+				background-image: linear-gradient(to right, #f82430 0%, #ff3a75 100%);
+				color: white;
+				border: none;
+				border-radius: 20px;
+				cursor: pointer;
+				font-size: 16px;
+			}
+			.loading {
+				text-align: center;
+				margin: 20px 0;
+				display: none;
+			}
+			.error-message {
+				color: #f82430;
+				text-align: center;
+				margin: 10px 0;
+				display: none;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<h1>加密貨幣平均震盪幅度排行榜 (前10名)</h1>
+
+			<button id="fetchData" class="btn-fetch">獲取最新數據</button>
+
+			<div id="loading" class="loading">數據加載中，請稍候...</div>
+			<div id="errorMessage" class="error-message"></div>
+
+			<table class="result-table">
+				<thead>
+					<tr>
+						<th>排名</th>
+						<th>幣種</th>
+						<th>代碼</th>
+						<th>平均震盪幅度 (%)</th>
+						<th>當前價格 (USD)</th>
+					</tr>
+				</thead>
+				<tbody id="resultBody">
+					<!-- 數據將在這裡動態填充 -->
+				</tbody>
+			</table>
+		</div>
+
+		<script>
+			document.addEventListener('DOMContentLoaded', function () {
+				const fetchButton = document.getElementById('fetchData')
+				const loadingDiv = document.getElementById('loading')
+				const errorMessageDiv = document.getElementById('errorMessage')
+				const resultBody = document.getElementById('resultBody')
+
+				fetchButton.addEventListener('click', fetchCryptoData)
+
+				// 頁面加載時自動獲取數據
+				fetchCryptoData()
+
+				function fetchCryptoData() {
+					// 顯示加載中
+					loadingDiv.style.display = 'block'
+					errorMessageDiv.style.display = 'none'
+					resultBody.innerHTML = ''
+
+					// 使用 CoinGecko API 獲取加密貨幣數據
+					fetch(
+						'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=true&price_change_percentage=24h,7d,30d'
+					)
+						.then((response) => {
+							if (!response.ok) {
+								throw new Error('網絡請求失敗')
+							}
+							return response.json()
+						})
+						.then((data) => {
+							// 計算平均震盪幅度 (ATR)
+							const processedData = data.map((coin) => {
+								// 計算24小時、7天和30天的震盪幅度
+								// 使用高低價差的絕對值作為震盪指標
+								const volatility24h =
+									coin.high_24h && coin.low_24h
+										? (Math.abs(coin.high_24h - coin.low_24h) /
+												coin.current_price) *
+											100
+										: 0
+
+								// 由於API沒有直接提供7天和30天的高低價，我們使用價格變化百分比的絕對值作為替代
+								const volatility7d = coin.price_change_percentage_7d_in_currency
+									? Math.abs(coin.price_change_percentage_7d_in_currency)
+									: 0
+
+								const volatility30d =
+									coin.price_change_percentage_30d_in_currency
+										? Math.abs(coin.price_change_percentage_30d_in_currency)
+										: 0
+
+								const volatilities = [
+									volatility24h,
+									volatility7d,
+									volatility30d,
+								]
+
+								const validVolatilities = volatilities.filter(
+									(v) => v !== null && !isNaN(v)
+								)
+								const avgVolatility =
+									validVolatilities.length > 0
+										? validVolatilities.reduce((sum, v) => sum + v, 0) /
+											validVolatilities.length
+										: 0
+
+								return {
+									name: coin.name,
+									symbol: coin.symbol.toUpperCase(),
+									avgVolatility: avgVolatility,
+									currentPrice: coin.current_price,
+								}
+							})
+
+							// 按平均震盪幅度排序（降序）
+							processedData.sort((a, b) => b.avgVolatility - a.avgVolatility)
+
+							// 取前10名
+							const top10 = processedData.slice(0, 10)
+
+							// 渲染結果
+							renderResults(top10)
+						})
+						.catch((error) => {
+							console.error('獲取數據失敗:', error)
+							errorMessageDiv.textContent =
+								'獲取數據失敗，請稍後再試。' + error.message
+							errorMessageDiv.style.display = 'block'
+						})
+						.finally(() => {
+							loadingDiv.style.display = 'none'
+						})
+				}
+
+				function renderResults(data) {
+					resultBody.innerHTML = ''
+
+					data.forEach((coin, index) => {
+						const row = document.createElement('tr')
+
+						row.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td>${coin.name}</td>
+                        <td>${coin.symbol}</td>
+                        <td>${coin.avgVolatility.toFixed(2)}</td>
+                        <td>$${coin.currentPrice.toLocaleString()}</td>
+                    `
+
+						resultBody.appendChild(row)
+					})
+				}
+			})
+		</script>
+	</body>
+</html>
